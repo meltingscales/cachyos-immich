@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 # Configuration
-MOUNT_POINT = "/mnt/external"
+MOUNT_POINT = "/run/media/immich/immich-backup"
 BACKUP_DIR = Path(MOUNT_POINT) / "immich-backups"
 SOURCE_DIR = Path(__file__).parent.resolve()
 VOLUMES_TO_BACKUP = ["library", "postgres"]

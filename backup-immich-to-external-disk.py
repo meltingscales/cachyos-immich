@@ -52,6 +52,18 @@ def show_disk_stats():
     print(f"  Used: {used_gb:.1f} GB / {total_gb:.1f} GB ({free_gb:.1f} GB free)")
 
 
+def get_dir_size_gb(path):
+    """Get directory size in GB using du -s."""
+    result = subprocess.run(
+        ["du", "-sb", str(path)],
+        capture_output=True, text=True
+    )
+    if result.returncode == 0:
+        size_bytes = int(result.stdout.split()[0])
+        return size_bytes / (1024**3)
+    return 0.0
+
+
 def list_backups():
     backups = get_backups()
     if not backups:
@@ -60,8 +72,7 @@ def list_backups():
 
     print(f"\nExisting backups ({len(backups)}):")
     for b in backups:
-        size = sum(f.stat().st_size for f in b.rglob('*') if f.is_file())
-        size_gb = size / (1024**3)
+        size_gb = get_dir_size_gb(b)
         print(f"  {b.name}  ({size_gb:.2f} GB)")
     return backups
 
@@ -90,9 +101,21 @@ def start_immich():
     subprocess.run(["docker", "compose", "start"], cwd=SOURCE_DIR, check=True)
 
 
-def run_backup():
+def check_today_exists():
+    """Returns (dest_path, should_proceed)."""
     today = datetime.now().strftime("%Y-%m-%d")
     dest = BACKUP_DIR / today
+
+    if dest.exists():
+        print(f"\nBackup for today ({today}) already exists.")
+        response = input("Overwrite? [y/N] ").strip().lower()
+        if response != 'y':
+            return dest, False
+
+    return dest, True
+
+
+def run_backup(dest):
     dest.mkdir(parents=True, exist_ok=True)
 
     print(f"\nBacking up to: {dest}")
@@ -108,12 +131,9 @@ def run_backup():
             str(dest / vol) + "/"
         ], check=True)
 
-    return dest
-
 
 def show_backup_stats(backup_path):
-    size = sum(f.stat().st_size for f in backup_path.rglob('*') if f.is_file())
-    size_gb = size / (1024**3)
+    size_gb = get_dir_size_gb(backup_path)
     print(f"\nBackup complete: {backup_path.name} ({size_gb:.2f} GB)")
 
 
@@ -156,14 +176,33 @@ TO RESTORE FROM A BACKUP:
     # 3. Maybe delete oldest
     maybe_delete_oldest()
 
-    # 4. Stop, backup, start
+    # 4. Check if today's backup exists
+    backup_path, should_proceed = check_today_exists()
+    if not should_proceed:
+        print("Backup cancelled.")
+        return 0
+
+    # 5. Confirm before proceeding
+    response = input("\nProceed with backup? [Y/n] ").strip().lower()
+    if response == 'n':
+        print("Backup cancelled.")
+        return 0
+
+    # 6. Stop, backup, start
     stop_immich()
+    backup_failed = False
     try:
-        backup_path = run_backup()
+        run_backup(backup_path)
+    except Exception:
+        backup_failed = True
+        raise
     finally:
+        if backup_failed and backup_path.exists():
+            print(f"\nBackup failed, cleaning up {backup_path}...")
+            shutil.rmtree(backup_path)
         start_immich()
 
-    # 5. Show final stats
+    # 7. Show final stats
     show_backup_stats(backup_path)
     show_disk_stats()
 

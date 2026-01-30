@@ -102,7 +102,7 @@ def run_backup():
             continue
         print(f"  Syncing {vol}...")
         subprocess.run([
-            "rsync", "-a", "--delete",
+            "rsync", "-a", "--delete", "--info=progress2",
             str(src) + "/",
             str(dest / vol) + "/"
         ], check=True)
@@ -118,6 +118,12 @@ def show_backup_stats(backup_path):
 
 def main():
     print("=== Immich Backup ===")
+
+    # 0. Check root
+    if os.geteuid() != 0:
+        print("Error: This script must be run as root (sudo).")
+        print("The Docker volumes are owned by root.")
+        return 1
 
     # 1. Check mount
     if not is_mounted(MOUNT_POINT):

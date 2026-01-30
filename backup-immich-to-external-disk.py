@@ -8,6 +8,7 @@
 5. show stats of our most recent backup
 '''
 
+import argparse
 import os
 import subprocess
 import shutil
@@ -117,6 +118,24 @@ def show_backup_stats(backup_path):
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Backup Immich docker volumes to an external disk.",
+        epilog="""
+TO RESTORE FROM A BACKUP:
+  1. Stop Immich:
+       cd /home/immich/Git/cachyos-immich && docker compose stop
+
+  2. Copy the backup folders back (replace YYYY-MM-DD with your backup date):
+       sudo rsync -a --delete /run/media/immich/immich-backup/immich-backups/YYYY-MM-DD/library/ ./library/
+       sudo rsync -a --delete /run/media/immich/immich-backup/immich-backups/YYYY-MM-DD/postgres/ ./postgres/
+
+  3. Start Immich:
+       docker compose start
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.parse_args()
+
     print("=== Immich Backup ===")
 
     # 0. Check root
